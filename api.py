@@ -1,4 +1,5 @@
 import csv
+from traitlets import Undefined
 import tweepy
 import configparser
 import requests
@@ -51,7 +52,7 @@ def append_to_csv(json_response, fileName):
     #Open OR create the target CSV file
     csvFile = open(fileName, "a", newline="", encoding='utf-8')
     csvWriter = csv.writer(csvFile)
-    header = ['author_id', 'created_at', 'tweet_id', 'lang', 'like_count', 'quote_count', 'reply_count', 'retweet_count', 'in_reply_to_user_id', 'referenced_tweets']
+    header = ['author_id', 'created_at', 'tweet_id', 'lang', 'like_count', 'quote_count', 'reply_count', 'retweet_count', 'in_reply_to_user_id', 'referenced_tweets_type', 'referenced_tweets_id']
     csvWriter.writerow(header)
     #Loop through each tweet
     for tweet in json_response['data']:
@@ -69,15 +70,17 @@ def append_to_csv(json_response, fileName):
         tweet_id = tweet['id']
 
         if('in_reply_to_user_id' in tweet):
-            in_reply_to_user_id = tweet['in_reply_to_user_id']
+            in_reply_to_user_id = str(tweet['in_reply_to_user_id'])
         else:
             in_reply_to_user_id = None
 
         if('referenced_tweets' in tweet):
-            referenced_tweets = tweet['referenced_tweets']
+            for i in range(0, len(tweet['referenced_tweets'])):
+                referenced_tweets_type = tweet['referenced_tweets'][i]['type']
+                referenced_tweets_id = str(tweet['referenced_tweets'][i]['id'])
         else:
-            referenced_tweets = None
-    
+            referenced_tweets_type = None
+            referenced_tweets_id = None    
         # 4. Language
         lang = tweet['lang']
 
@@ -91,7 +94,7 @@ def append_to_csv(json_response, fileName):
         #text = tweet['text']
         
         # Assemble all data in a list
-        res = [author_id, created_at, tweet_id, lang, like_count, quote_count, reply_count, retweet_count, in_reply_to_user_id, referenced_tweets]
+        res = [author_id, created_at, tweet_id, lang, like_count, quote_count, reply_count, retweet_count, in_reply_to_user_id, referenced_tweets_type, referenced_tweets_id]
         
         # Append the result to the CSV file
         csvWriter.writerow(res)
