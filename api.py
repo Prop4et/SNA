@@ -72,15 +72,15 @@ def append_to_csv(json_response, fileName):
         if('in_reply_to_user_id' in tweet):
             in_reply_to_user_id = str(tweet['in_reply_to_user_id'])
         else:
-            in_reply_to_user_id = None
+            in_reply_to_user_id = ""
 
         if('referenced_tweets' in tweet):
             for i in range(0, len(tweet['referenced_tweets'])):
                 referenced_tweets_type = tweet['referenced_tweets'][i]['type']
                 referenced_tweets_id = str(tweet['referenced_tweets'][i]['id'])
         else:
-            referenced_tweets_type = None
-            referenced_tweets_id = None    
+            referenced_tweets_type = ""
+            referenced_tweets_id = ""    
         # 4. Language
         lang = tweet['lang']
 
@@ -113,4 +113,4 @@ end_time = "2022-05-13T00:00:00.000Z"
 url = create_url(keyword, start_time, end_time)
 json_response = connect_to_endpoint(url[0], headers, url[1])
 
-append_to_csv(json_response, "data.csv")
+append_to_csv(json_response, "data2.csv")
