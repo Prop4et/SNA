@@ -8,24 +8,19 @@ import pandas as pd
 import dateutil.parser
 
 #read config
-config = configparser.ConfigParser()
-config.read('./config.ini')
+def read_config():
+    config = configparser.ConfigParser()
+    config.read('./config.ini')
 
-api_key = config['twitter']['api_key']
-api_key_secret = config['twitter']['api_key_secret']
+    return {'api_key': config['twitter']['api_key'], 'api_key_secret': config['twitter']['api_key_secret'], 'bearer_token': config['twitter']['bearer_token'], 'access_token': config['twitter']['access_token'], 'access_token_secret': config['twitter']['access_token_secret']}
 
-bearer_token = config['twitter']['bearer_token']
-
-access_token = config['twitter']['access_token']
-access_token_secret = config['twitter']['access_token_secret']
 
 def create_headers(bearer_token):
     headers = {"Authorization": "Bearer {}".format(bearer_token)}
     return headers
 
-def create_url(keyword, start_date, end_date, max_results = 10):
+def create_url(keyword, start_date, end_date = None, max_results = 10, search_url = "https://api.twitter.com/2/tweets/search/recent"):
     
-    search_url = "https://api.twitter.com/2/tweets/search/recent" 
     #change params based on the endpoint you are using
     query_params = {'query': keyword,
                     'start_time': start_date,
@@ -52,8 +47,7 @@ def append_to_csv(json_response, fileName):
     #Open OR create the target CSV file
     csvFile = open(fileName, "a", newline="", encoding='utf-8')
     csvWriter = csv.writer(csvFile)
-    header = ['author_id', 'created_at', 'tweet_id', 'lang', 'like_count', 'quote_count', 'reply_count', 'retweet_count', 'in_reply_to_user_id', 'referenced_tweets_type', 'referenced_tweets_id']
-    csvWriter.writerow(header)
+    
     #Loop through each tweet
     for tweet in json_response['data']:
         
@@ -68,12 +62,12 @@ def append_to_csv(json_response, fileName):
 
         # 3. Tweet ID
         tweet_id = tweet['id']
-
+        # 4. replied user ID
         if('in_reply_to_user_id' in tweet):
             in_reply_to_user_id = str(tweet['in_reply_to_user_id'])
         else:
             in_reply_to_user_id = ""
-
+        # 5. reply type and replied tweet ID
         if('referenced_tweets' in tweet):
             for i in range(0, len(tweet['referenced_tweets'])):
                 referenced_tweets_type = tweet['referenced_tweets'][i]['type']
@@ -81,20 +75,20 @@ def append_to_csv(json_response, fileName):
         else:
             referenced_tweets_type = ""
             referenced_tweets_id = ""    
-        # 4. Language
+        # 6. Language
         lang = tweet['lang']
 
-        # 5. Tweet metrics
+        # 7. Tweet metrics
         retweet_count = tweet['public_metrics']['retweet_count']
         reply_count = tweet['public_metrics']['reply_count']
         like_count = tweet['public_metrics']['like_count']
         quote_count = tweet['public_metrics']['quote_count']
 
-        # 6. Tweet text
-        #text = tweet['text']
+        # 8. Conversation ID
+        conversation_id = tweet['conversation_id']
         
         # Assemble all data in a list
-        res = [author_id, created_at, tweet_id, lang, like_count, quote_count, reply_count, retweet_count, in_reply_to_user_id, referenced_tweets_type, referenced_tweets_id]
+        res = [author_id, created_at, tweet_id, lang, like_count, quote_count, reply_count, retweet_count, in_reply_to_user_id, referenced_tweets_type, referenced_tweets_id, conversation_id]
         
         # Append the result to the CSV file
         csvWriter.writerow(res)
@@ -106,11 +100,23 @@ def append_to_csv(json_response, fileName):
     # Print the number of tweets for this iteration
     print("# of Tweets added from this response: ", counter) 
 
-headers = create_headers(bearer_token)
-keyword = "(#Eurovision2022 OR #ESC2022) -is:retweet"
-start_time = "2022-05-10T00:00:00.000Z"
-end_time = "2022-05-13T00:00:00.000Z"
-url = create_url(keyword, start_time, end_time)
-json_response = connect_to_endpoint(url[0], headers, url[1])
+def writeHeader(filename):
+    csvFile = open(filename, "a", newline="", encoding='utf-8')
+    header = ['author_id', 'created_at', 'tweet_id', 'lang', 'like_count', 'quote_count', 'reply_count', 'retweet_count', 'in_reply_to_user_id', 'referenced_tweets_type', 'referenced_tweets_id', 'conversation_id']
+    csvWriter = csv.writer(csvFile)
+    csvWriter.writerow(header)
+    csvFile.close()
 
-append_to_csv(json_response, "data2.csv")
+def main():
+    config_dict = read_config()
+    headers = create_headers(config_dict['bearer_token'])
+    keyword = "(#Eurovision2022 OR #ESC2022) -is:retweet"
+    start_time = "2022-05-10T00:00:00.000Z"
+    url = create_url(keyword, start_time)
+    json_response = connect_to_endpoint(url[0], headers, url[1])
+
+    writeHeader("data2.csv")
+    append_to_csv(json_response, "data2.csv")
+
+if __name__ == "__main__":
+    main()
