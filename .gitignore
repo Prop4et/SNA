@@ -1,3 +1,4 @@
 config.ini
 prova.*
-data.csv
+data*.csv
+dummy_api.py
