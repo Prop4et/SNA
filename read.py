@@ -1,4 +1,8 @@
 import pandas as pd
 
-df = pd.read_csv('data2.csv')
-print(df)
+def main():
+    df = pd.read_csv('Europrova.csv', dtype=str)
+    print(df)
+
+if __name__ == '__main__':
+    main()
