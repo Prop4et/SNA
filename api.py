@@ -20,19 +20,23 @@ def read_config():
 def parse():
     argv = sys.argv[1:]
     try:
-        opts, args = getopt.getopt(argv, 'q:f:')
-        if len(opts) != 2:
-            return [None, None]
+        opts, args = getopt.getopt(argv, 'q:f:d:l:')
+        if len(opts) != 4:
+            return [None, None, None, None]
     except getopt.GetoptError:
-        print('usage: api.py -q <\'query\'> -f <filename>')
-        return [None, None]
+        print('usage: api.py -q <\'query\'> -f <filename> -d <YYYY-MM-DDT:hh:mm:ss.000Z>')
+        return [None, None, None, None]
 
     for opt, arg in opts:
         if opt in ['-f']:
             filename = arg
         if opt in ['-q']:
             query = arg
-    return [query, filename]
+        if opt in ['-d']:
+            date = arg
+        if opt in ['-l']:
+            max_tweets = int(arg)
+    return [query, filename, date, max_tweets]
 
 def create_headers(bearer_token):
     headers = {"Authorization": "Bearer {}".format(bearer_token)}
@@ -57,11 +61,11 @@ def timeNext(timestr):
     t = str(dateutil.parser.parse(timestr)+relativedelta(seconds=1))
     
 
-def connect_to_endpoint(url, headers, params, next_token = None):
+def connect_to_endpoint(url, headers, params, total, timestamp, next_token = None):
     params['next_token'] = next_token   #params object received from create_url function
     response = requests.request("GET", url, headers = headers, params = params)
     if response.status_code != 200:
-        print("Endpoint Response Code: " + str(response.status_code))
+        print("Endpoint Response Code: " + str(response.status_code) + "\ngot: " + str(total) + " tweets\n" + "last timestamp: " + timestamp)
         raise Exception(response.status_code, response.text)
     return response.json()
 
@@ -106,15 +110,15 @@ def append_to_csv(json_response, fileName):
 
         # 7. Tweet metrics
         #retweet_count = tweet['public_metrics']['retweet_count']
-        #reply_count = tweet['public_metrics']['reply_count']
-        #like_count = tweet['public_metrics']['like_count']
-        #quote_count = tweet['public_metrics']['quote_count']
+        reply_count = tweet['public_metrics']['reply_count']
+        like_count = tweet['public_metrics']['like_count']
+        quote_count = tweet['public_metrics']['quote_count']
 
         # 8. Conversation ID
         conversation_id = tweet['conversation_id']
         
         # Assemble all data in a list
-        res = [author_id, created_at, tweet_id, in_reply_to_user_id, referenced_tweets_type, referenced_tweets_id, conversation_id]
+        res = [author_id, created_at, tweet_id, in_reply_to_user_id, like_count, reply_count, quote_count, referenced_tweets_type, referenced_tweets_id, conversation_id]
         
         # Append the result to the CSV file
         csvWriter.writerow(res)
@@ -127,12 +131,20 @@ def append_to_csv(json_response, fileName):
     print("# of Tweets added from this response: ", counter)
     return counter 
 
+def takeDate(filename):
+    if not os.path.isfile(filename):
+        return 0
+    df = pd.read_csv(filename, dtype=str)
+    if df.size == 0:
+        return 0
+    timestamp = df.iloc[-1]['created_at']
+    return timestamp.split(' ')[0]+"T"+timestamp.split(' ')[1].split('+')[0]+".000Z"
+
 def writeHeader(filename):
     if os.path.isfile(filename):
-        print('File already exists')
         return 0
     csvFile = open(filename, "a", newline="", encoding='utf-8')
-    header = ['author_id', 'created_at', 'tweet_id', 'in_reply_to_user_id', 'referenced_tweets_type', 'referenced_tweets_id', 'conversation_id']
+    header = ['author_id', 'created_at', 'tweet_id', 'in_reply_to_user_id', 'like_count', 'reply_count', 'quote_count', 'referenced_tweets_type', 'referenced_tweets_id', 'conversation_id']
     csvWriter = csv.writer(csvFile)
     csvWriter.writerow(header)
     print('A new file has been created, header wrote')
@@ -140,7 +152,7 @@ def writeHeader(filename):
 
 def main():
     
-    query, filename = parse()
+    query, filename, date, max_tweets = parse()
     if query is None or filename is None: 
         exit("error while passing arguments")
     
@@ -151,23 +163,25 @@ def main():
 
     total = 0
     counter = 0
-    #start_date = str(datetime.now()-timedelta(days=6, hours=12))
-    #start_time = start_date.split(' ')[0]+"T"+start_date.split(' ')[1].split('.')[0]+".000Z"
-    
-    end_date = str(datetime.now()-timedelta(days=1, hours=2, seconds=30))
-    end_time = end_date.split(' ')[0]+"T"+end_date.split(' ')[1].split('.')[0]+".000Z"
     requests = 0
-    while total < 80000:
-        url = create_url(query, end_date=end_time, max_results=100)
-        json_response = connect_to_endpoint(url[0], headers, url[1])
+
+    #if file exists then i need to take the last date there
+    app_val = takeDate(filename)
+    if app_val:
+        date = app_val
+    while total < max_tweets:
+        url = create_url(query, end_date=date, max_results=100)
+        json_response = connect_to_endpoint(url[0], headers, url[1], total, date)
         if('data' in json_response):
-            end_time = json_response['data'][len(json_response['data'])-1]['created_at']
+            date = json_response['data'][len(json_response['data'])-1]['created_at']
             counter = append_to_csv(json_response, filename)
         else:
+            print('no more tweets to be returned')
             break
         total += counter
         requests += 1
         if requests == 430:
+            requests = 0
             time.sleep(1000)
 
 if __name__ == "__main__":
